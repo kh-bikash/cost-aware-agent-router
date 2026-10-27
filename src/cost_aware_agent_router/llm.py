@@ -10,7 +10,9 @@ from urllib.request import Request, urlopen
 
 
 class LLM(Protocol):
-    def complete(self, messages: list[dict[str, str]], *, model: str | None = None) -> str: ...
+    def complete(
+        self, messages: list[dict[str, str]], *, model: str | None = None
+    ) -> str: ...
 
 
 @dataclass(frozen=True)
@@ -32,38 +34,66 @@ class OpenAICompatibleLLM:
     retries: int = 2
 
     @classmethod
-    def from_env(cls) -> "OpenAICompatibleLLM":
+    def from_env(cls) -> OpenAICompatibleLLM:
         key = os.environ.get("OPENAI_API_KEY", "")
         if not key:
             raise RuntimeError("Set OPENAI_API_KEY before calling a live model")
-        return cls(key, os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1"),
-                   os.environ.get("OPENAI_MODEL", "gpt-4.1-mini"))
+        return cls(
+            key,
+            os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1"),
+            os.environ.get("OPENAI_MODEL", "gpt-4.1-mini"),
+        )
 
-    def complete(self, messages: list[dict[str, str]], *, model: str | None = None) -> str:
+    def complete(
+        self, messages: list[dict[str, str]], *, model: str | None = None
+    ) -> str:
         return self.complete_with_usage(messages, model=model).text
 
-    def complete_with_usage(self, messages: list[dict[str, str]], *, model: str | None = None,
-                            max_output_tokens: int = 512) -> Completion:
-        if not self.base_url.startswith("https://") and not self.base_url.startswith("http://localhost"):
-            raise ValueError("Model endpoint must use HTTPS (or localhost for development)")
-        payload = json.dumps({"model": model or self.default_model, "messages": messages,
-                              "max_completion_tokens": max_output_tokens}).encode()
-        request = Request(self.base_url.rstrip("/") + "/chat/completions", data=payload,
-                          headers={"Authorization": "Bearer " + self.api_key,
-                                   "Content-Type": "application/json"}, method="POST")
+    def complete_with_usage(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        model: str | None = None,
+        max_output_tokens: int = 512,
+    ) -> Completion:
+        if not self.base_url.startswith("https://") and not self.base_url.startswith(
+            "http://localhost"
+        ):
+            raise ValueError(
+                "Model endpoint must use HTTPS (or localhost for development)"
+            )
+        payload = json.dumps(
+            {
+                "model": model or self.default_model,
+                "messages": messages,
+                "max_completion_tokens": max_output_tokens,
+            }
+        ).encode()
+        request = Request(
+            self.base_url.rstrip("/") + "/chat/completions",
+            data=payload,
+            headers={
+                "Authorization": "Bearer " + self.api_key,
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
         for attempt in range(self.retries + 1):
             try:
                 with urlopen(request, timeout=self.timeout_seconds) as response:
                     data = json.load(response)
                 usage = data.get("usage", {})
-                return Completion(data["choices"][0]["message"]["content"],
-                                  int(usage.get("prompt_tokens", 0)), int(usage.get("completion_tokens", 0)),
-                                  "provider" if usage else "missing")
+                return Completion(
+                    data["choices"][0]["message"]["content"],
+                    int(usage.get("prompt_tokens", 0)),
+                    int(usage.get("completion_tokens", 0)),
+                    "provider" if usage else "missing",
+                )
             except HTTPError as exc:
                 if exc.code not in (429, 500, 502, 503, 504) or attempt == self.retries:
                     raise
             except (URLError, TimeoutError):
                 if attempt == self.retries:
                     raise
-            time.sleep(min(2 ** attempt, 4))
+            time.sleep(min(2**attempt, 4))
         raise RuntimeError("Unreachable retry state")
