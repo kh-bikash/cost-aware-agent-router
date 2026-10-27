@@ -14,6 +14,7 @@ class Model:
     input_per_million_usd: float
     output_per_million_usd: float
     quality_tier: int
+    max_output_tokens: int = 512
 
 
 @dataclass(frozen=True)
@@ -23,6 +24,7 @@ class Decision:
     estimated_cost_usd: float
     confidence: float
     early_exit: bool
+    usage_source: str
 
 
 class BudgetExceeded(Exception):
@@ -36,7 +38,7 @@ class CostRouter:
         if not models:
             raise ValueError("At least one model is required")
         with self._db() as db:
-            db.execute("CREATE TABLE IF NOT EXISTS decisions(id INTEGER PRIMARY KEY, task_id TEXT, model TEXT, cost_usd REAL, confidence REAL, created_at REAL)")
+            db.execute("CREATE TABLE IF NOT EXISTS decisions(id INTEGER PRIMARY KEY, task_id TEXT, model TEXT, cost_usd REAL, confidence REAL, usage_source TEXT, input_tokens INTEGER, output_tokens INTEGER, created_at REAL)")
 
     def _db(self):
         return sqlite3.connect(self.db_path, timeout=10)
@@ -50,17 +52,26 @@ class CostRouter:
         if not candidates:
             candidates = [self.models[-1]]
         for index, model in enumerate(candidates):
-            reserve = (input_tokens * model.input_per_million_usd + max(128, input_tokens) * model.output_per_million_usd) / 1_000_000
+            reserve = (input_tokens * model.input_per_million_usd + model.max_output_tokens * model.output_per_million_usd) / 1_000_000
             if spent + reserve > budget_usd:
                 continue
-            answer = self.llm.complete([{"role": "user", "content": prompt}], model=model.name)
-            actual_estimate = (input_tokens * model.input_per_million_usd + self.token_estimator(answer) * model.output_per_million_usd) / 1_000_000
+            if hasattr(self.llm, "complete_with_usage"):
+                completion = self.llm.complete_with_usage([{"role": "user", "content": prompt}], model=model.name,
+                                                          max_output_tokens=model.max_output_tokens)
+                answer = completion.text
+                used_input = completion.input_tokens or input_tokens
+                used_output = completion.output_tokens or self.token_estimator(answer)
+                usage_source = completion.usage_source
+            else:
+                answer = self.llm.complete([{"role": "user", "content": prompt}], model=model.name)
+                used_input, used_output, usage_source = input_tokens, self.token_estimator(answer), "estimated"
+            actual_estimate = (used_input * model.input_per_million_usd + used_output * model.output_per_million_usd) / 1_000_000
             spent += actual_estimate
             confidence = max(0.0, min(1.0, float(confidence_fn(prompt, answer))))
             with self._db() as db:
-                db.execute("INSERT INTO decisions(task_id,model,cost_usd,confidence,created_at) VALUES(?,?,?,?,?)", (task_id, model.name, actual_estimate, confidence, time.time()))
+                db.execute("INSERT INTO decisions(task_id,model,cost_usd,confidence,usage_source,input_tokens,output_tokens,created_at) VALUES(?,?,?,?,?,?,?,?)", (task_id, model.name, actual_estimate, confidence, usage_source, used_input, used_output, time.time()))
             if confidence >= 0.8 or index == len(candidates) - 1:
-                return Decision(model.name, answer, spent, confidence, confidence >= 0.8 and index < len(candidates) - 1)
+                return Decision(model.name, answer, spent, confidence, confidence >= 0.8 and index < len(candidates) - 1, usage_source)
         raise BudgetExceeded("No model fits remaining task budget")
 
     def analytics(self) -> list[tuple[str, int, float]]:

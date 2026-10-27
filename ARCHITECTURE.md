@@ -29,3 +29,9 @@ The LLM adapter times out after 30 seconds and retries transient HTTP failures t
 3. Persist SQLite files on durable storage and back them up; migrate to a managed database for high write volume or multiple replicas.
 4. Run `pytest -q` in CI before deployment.
 5. Define workload specific evaluation cases, latency objectives, and rollback criteria before serving real users.
+
+## Routing and accounting
+
+Each `Model` declares price per million input/output tokens, quality tier, and maximum output tokens. A task supplies its USD budget, estimated complexity, and a confidence evaluator. The router starts at the least expensive allowed tier, reserves a worst case output allowance, calls the model, records its measured or estimated usage, and stops when confidence is at least 0.8. Otherwise it may escalate within the remaining budget.
+
+The OpenAI compatible adapter requests `max_completion_tokens` and parses provider `prompt_tokens` and `completion_tokens`. If an injected adapter lacks usage data, the ledger marks the record as estimated. The `decisions` table enables per-model count and spend analytics. Prices must be configured from the current provider sheet. A reserve is a pre-call estimate: provider tokenization, hidden reasoning tokens, and pricing changes mean it is not a financial hard cap. Reconcile with provider billing before reporting savings.

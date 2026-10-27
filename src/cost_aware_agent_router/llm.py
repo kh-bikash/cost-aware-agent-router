@@ -14,6 +14,14 @@ class LLM(Protocol):
 
 
 @dataclass(frozen=True)
+class Completion:
+    text: str
+    input_tokens: int
+    output_tokens: int
+    usage_source: str
+
+
+@dataclass(frozen=True)
 class OpenAICompatibleLLM:
     """Small dependency-free adapter for OpenAI-compatible chat APIs."""
 
@@ -32,9 +40,14 @@ class OpenAICompatibleLLM:
                    os.environ.get("OPENAI_MODEL", "gpt-4.1-mini"))
 
     def complete(self, messages: list[dict[str, str]], *, model: str | None = None) -> str:
+        return self.complete_with_usage(messages, model=model).text
+
+    def complete_with_usage(self, messages: list[dict[str, str]], *, model: str | None = None,
+                            max_output_tokens: int = 512) -> Completion:
         if not self.base_url.startswith("https://") and not self.base_url.startswith("http://localhost"):
             raise ValueError("Model endpoint must use HTTPS (or localhost for development)")
-        payload = json.dumps({"model": model or self.default_model, "messages": messages}).encode()
+        payload = json.dumps({"model": model or self.default_model, "messages": messages,
+                              "max_completion_tokens": max_output_tokens}).encode()
         request = Request(self.base_url.rstrip("/") + "/chat/completions", data=payload,
                           headers={"Authorization": "Bearer " + self.api_key,
                                    "Content-Type": "application/json"}, method="POST")
@@ -42,7 +55,10 @@ class OpenAICompatibleLLM:
             try:
                 with urlopen(request, timeout=self.timeout_seconds) as response:
                     data = json.load(response)
-                return data["choices"][0]["message"]["content"]
+                usage = data.get("usage", {})
+                return Completion(data["choices"][0]["message"]["content"],
+                                  int(usage.get("prompt_tokens", 0)), int(usage.get("completion_tokens", 0)),
+                                  "provider" if usage else "missing")
             except HTTPError as exc:
                 if exc.code not in (429, 500, 502, 503, 504) or attempt == self.retries:
                     raise
