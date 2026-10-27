@@ -46,3 +46,20 @@ def test_provider_usage_drives_ledger(tmp_path):
     )
     assert result.usage_source == "provider"
     assert result.estimated_cost_usd == (100 + 50 * 2) / 1_000_000
+
+
+def test_migrates_previous_ledger(tmp_path):
+    import sqlite3
+
+    db = tmp_path / "old.db"
+    with sqlite3.connect(db) as connection:
+        connection.execute(
+            "CREATE TABLE decisions(id INTEGER PRIMARY KEY, task_id TEXT, model TEXT, cost_usd REAL, confidence REAL, created_at REAL)"
+        )
+    router = CostRouter(Stub(), [Model("cheap", 1, 1, 1)], db)
+    assert (
+        router.route(
+            "task", "hello", budget_usd=0.01, complexity=0, confidence_fn=lambda *_: 1
+        ).model
+        == "cheap"
+    )

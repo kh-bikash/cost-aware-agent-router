@@ -13,6 +13,15 @@ python -m pip install -e '.[dev]'
 pytest -q
 ```
 
+On macOS or Linux:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e '.[dev]'
+pytest -q
+```
+
 For live model calls, set `OPENAI_API_KEY` and optionally `OPENAI_MODEL` and `OPENAI_BASE_URL` as shown in `.env.example`. The test suite uses stubs and needs no model key.
 
 ```python
@@ -35,6 +44,8 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for components, state, failure behavior, 
 ## Deployment and safety
 
 Pricing in this example is illustrative and must be updated from your provider's current price sheet. Costs and tokens are estimates, and a provider response can exceed a reserve. The system does not promise a particular percentage saving.
+
+The SQLite ledger migrates older decision tables by adding provider usage columns on startup; existing historical rows remain available for analytics.
 
 Install this as a library in an authenticated application or worker. Supply the LLM adapter through dependency injection. Keep secrets in environment variables, never in source control.
 

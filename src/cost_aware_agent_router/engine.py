@@ -54,6 +54,14 @@ class CostRouter:
             db.execute(
                 "CREATE TABLE IF NOT EXISTS decisions(id INTEGER PRIMARY KEY, task_id TEXT, model TEXT, cost_usd REAL, confidence REAL, usage_source TEXT, input_tokens INTEGER, output_tokens INTEGER, created_at REAL)"
             )
+            columns = {row[1] for row in db.execute("PRAGMA table_info(decisions)")}
+            for name, kind in (
+                ("usage_source", "TEXT"),
+                ("input_tokens", "INTEGER"),
+                ("output_tokens", "INTEGER"),
+            ):
+                if name not in columns:
+                    db.execute(f"ALTER TABLE decisions ADD COLUMN {name} {kind}")
 
     def _db(self):
         return sqlite3.connect(self.db_path, timeout=10)
