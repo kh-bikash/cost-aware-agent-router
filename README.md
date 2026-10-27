@@ -37,6 +37,26 @@ print(result, router.analytics())
 
 ## Architecture
 
+```mermaid
+flowchart LR
+    Task[Task and USD budget] --> Tier[Complexity and tier policy]
+    Prices[Configured model prices] --> Tier
+    Tier --> Reserve[Output token reservation]
+    Reserve --> LLM[Selected model]
+    LLM --> Usage[Provider usage or estimate]
+    Usage --> Ledger[(SQLite cost ledger)]
+    Usage --> Confidence[Confidence evaluator]
+    Confidence -->|Accepted| Answer[Answer and cost]
+    Confidence -->|Low confidence and budget remains| Tier
+    Reserve -->|No model fits| Reject[Budget exceeded]
+```
+
+| Component | Responsibility |
+|---|---|
+| Model catalog | Declares tiers, token prices, and output limits. |
+| Router | Reserves budget and escalates only when confidence is low. |
+| Ledger | Stores per-decision usage source, token counts, and cost. |
+
 Task -> complexity floor -> model tier list -> reserve estimated tokens -> model call -> estimated cost ledger -> confidence gate -> early exit or escalation.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for components, state, failure behavior, and operations.
