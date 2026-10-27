@@ -24,6 +24,8 @@ pytest -q
 
 For live model calls, set `OPENAI_API_KEY` and optionally `OPENAI_MODEL` and `OPENAI_BASE_URL` as shown in `.env.example`. The test suite uses stubs and needs no model key.
 
+The installed `cost-router` command accepts a JSON price catalog, task budget, complexity, and required output terms. Copy `examples/models.example.json`, replace model IDs and prices with your provider's current values, then run `cost-router --models models.json route "Write a summary including risks" --budget-usd 0.02 --complexity 2 --required-term risks`. Use `cost-router --models models.json analytics` to inspect the durable decision ledger. Run `cost-router --models models.json serve --port 8080` for a local browser interface. Required-term coverage is a deterministic acceptance check, not factual confidence; add an independent evaluator when quality matters.
+
 ```python
 from cost_aware_agent_router.engine import CostRouter, Model
 from cost_aware_agent_router.llm import OpenAICompatibleLLM
@@ -39,6 +41,8 @@ print(result, router.analytics())
 
 ```mermaid
 flowchart LR
+    CLI[Command line] --> Task
+    Browser[Browser interface] --> Task
     Task[Task and USD budget] --> Tier[Complexity and tier policy]
     Prices[Configured model prices] --> Tier
     Tier --> Reserve[Output token reservation]
@@ -62,6 +66,8 @@ Task -> complexity floor -> model tier list -> reserve estimated tokens -> model
 See [ARCHITECTURE.md](ARCHITECTURE.md) for components, state, failure behavior, and operations.
 
 ## Deployment and safety
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for the non-root container, token-protected browser, data mounts, and release checks.
 
 Pricing in this example is illustrative and must be updated from your provider's current price sheet. Costs and tokens are estimates, and a provider response can exceed a reserve. The system does not promise a particular percentage saving.
 

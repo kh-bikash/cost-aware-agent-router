@@ -50,6 +50,15 @@ class CostRouter:
         )
         if not models:
             raise ValueError("At least one model is required")
+        if any(
+            not model.name
+            or model.input_per_million_usd < 0
+            or model.output_per_million_usd < 0
+            or model.quality_tier < 1
+            or model.max_output_tokens < 1
+            for model in models
+        ):
+            raise ValueError("invalid model catalog entry")
         with self._db() as db:
             db.execute(
                 "CREATE TABLE IF NOT EXISTS decisions(id INTEGER PRIMARY KEY, task_id TEXT, model TEXT, cost_usd REAL, confidence REAL, usage_source TEXT, input_tokens INTEGER, output_tokens INTEGER, created_at REAL)"

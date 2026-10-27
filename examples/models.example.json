@@ -1,0 +1,4 @@
+[
+  {"name":"replace-with-small-model","input_per_million_usd":0.20,"output_per_million_usd":0.80,"quality_tier":1,"max_output_tokens":256},
+  {"name":"replace-with-large-model","input_per_million_usd":2.00,"output_per_million_usd":8.00,"quality_tier":2,"max_output_tokens":512}
+]
