@@ -90,6 +90,40 @@ Install this as a library in an authenticated application or worker. Supply the 
 
 `pytest -q` runs deterministic tests. GitHub Actions runs the same suite on pushes and pull requests.
 
+## Product guide
+
+### Plan a routing decision
+
+Start by copying `examples/models.example.json` and replacing its model IDs, prices, tiers, and output limits with values from your provider. Then give `route` a prompt, a USD budget, a complexity score from 0 to 10, and any required output terms. The router estimates a safe starting tier, reserves room for output, calls a model that fits, and asks your evaluator whether the answer is acceptable. It escalates only while the budget allows.
+
+| Input | Why it matters |
+|---|---|
+| Model catalog | Determines available tiers, token prices, and output limits. |
+| Task budget | Caps which attempts the router may start. |
+| Complexity | Sets a floor for the starting model tier. |
+| Acceptance evaluator | Decides whether to stop or try a stronger model. |
+
+`analytics` reads the durable decision ledger. It shows which model was selected, token counts, how usage was measured or estimated, and the cost assigned to each decision. The CLI's required-term check is intentionally simple; the Python library lets an application supply a stronger evaluator.
+
+### Understand the numbers
+
+Prices in the example catalog are illustrative. Update them whenever provider prices change. A reserved budget is based on estimates; a provider can report different token usage after the call. The ledger helps explain decisions, but it is not a billing system and it does not establish a particular savings percentage. For a meaningful cost comparison, evaluate the same workload against a fixed-model baseline and compare both quality and provider invoices.
+
+### Configuration and operations
+
+Set `OPENAI_API_KEY` for model calls and, when needed, `OPENAI_BASE_URL` and `OPENAI_MODEL` for the provider. Keep the catalog, ledger file, and model key under operator control. Use `cost-router --models models.json route ...` for a task, `analytics` for review, or `serve --port 8080` for the local browser. Back up the SQLite ledger if historical analytics matter. The browser is an operator interface, with deployment and access notes in [DEPLOYMENT.md](DEPLOYMENT.md). The decision flow and accounting assumptions are documented in [ARCHITECTURE.md](ARCHITECTURE.md).
+
+### Common issues
+
+| Symptom | Check |
+|---|---|
+| No model fits the budget | Verify the catalog's token prices and output limits, then raise the budget or narrow the task. |
+| An answer stops too early | Strengthen the acceptance evaluator; required-term coverage alone is weak. |
+| Estimated costs differ from invoices | Compare provider-reported token usage and current prices; the reservation is an estimate. |
+| Analytics are empty | Confirm that route decisions use the same SQLite ledger file as `analytics`. |
+
+When adding a new model, test representative tasks at each complexity tier and compare quality as well as cost. A cheaper model is only a saving if it still meets the application's acceptance criteria.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
