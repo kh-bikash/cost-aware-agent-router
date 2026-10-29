@@ -1,6 +1,17 @@
 # Cost Aware Agent Router
 
-Choose model tiers under a task budget, stop when a confidence evaluator accepts an answer, and store cost estimates.
+## About
+
+This app helps decide which model should handle a task when you have a spending limit. Give it a task, a budget, and a catalog of models with prices and capability tiers. It starts with a model that fits the task and budget, checks whether the answer meets your acceptance rule, and only moves to a stronger model when there is budget left. It records the decision so you can inspect cost over time.
+
+### What you can do
+
+- Set a per-task USD budget and a minimum model tier.
+- Route a prompt through a price catalog you control.
+- Stop early when an evaluator accepts the answer.
+- Read a ledger of model choices, token usage, and estimated cost.
+
+The CLI and local browser are usable with your own model provider and current price catalog. The included catalog is an example, not live pricing. Required-term checks are a simple acceptance rule, not proof that an answer is factually correct. The product has no public hosted URL yet, and it does not claim a measured percentage of savings.
 
 ## Quick start
 
